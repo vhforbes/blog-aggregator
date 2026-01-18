@@ -1,0 +1,25 @@
+{
+  "name": "Node.js & TypeScript + Go",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bullseye",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.22",
+      "installTools": true
+    }
+  },
+  "postStartCommand": "go install github.com/bootdotdev/bootdev@latest",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-vscode.vscode-typescript-next",
+        "esbenp.prettier-vscode",
+        "yoavbls.pretty-ts-errors"
+      ],
+      "settings": {
+        "go.userLanguageServer": true
+      }
+    }
+  },
+  "postCreateCommand": "go version && node -v && npm -v"
+}
