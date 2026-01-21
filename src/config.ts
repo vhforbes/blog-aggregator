@@ -36,7 +36,5 @@ export function readConfig() {
     currentUserName: precessedConfig.current_user_name,
   };
 
-  console.log(finalConfig);
-
   return finalConfig;
 }

@@ -8,6 +8,13 @@
       "when": 1768829963528,
       "tag": "0000_thin_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1769007372471,
+      "tag": "0001_nebulous_blacklash",
+      "breakpoints": true
     }
   ]
 }

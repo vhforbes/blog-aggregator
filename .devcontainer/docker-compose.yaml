@@ -4,7 +4,7 @@ services:
     command: sleep infinity
     working_dir: /workspaces
     volumes:
-      - ..:/workspaces:cached
+      - ..:/workspaces/blog-aggregator:cached,Z
     depends_on:
       db:
         condition: service_healthy
