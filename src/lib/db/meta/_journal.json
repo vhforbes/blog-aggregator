@@ -15,6 +15,20 @@
       "when": 1769007372471,
       "tag": "0001_nebulous_blacklash",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769536146606,
+      "tag": "0002_melted_doorman",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1769539302461,
+      "tag": "0003_nosy_the_spike",
+      "breakpoints": true
     }
   ]
 }

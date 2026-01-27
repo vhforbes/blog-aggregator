@@ -7,6 +7,10 @@ import {
   resetUsersTable,
 } from "./lib/db/queries/users.ts";
 import { createFeed, getFeeds } from "./lib/db/queries/feeds.ts";
+import {
+  createFeedFollow,
+  getFeedFollowsForUser,
+} from "./lib/db/queries/feedFollow.ts";
 
 type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
 
@@ -199,7 +203,11 @@ async function createFeedHandler(cmdName: string, ...args: string[]) {
 
   const { currentUserName } = readConfig();
 
-  await createFeed(name, url, currentUserName);
+  const user = await getUserByName(currentUserName);
+  const createdFeed = await createFeed(name, url, user.id);
+  const feedFollow = await createFeedFollow(user.id, createdFeed.url);
+
+  console.log(feedFollow);
 }
 
 async function fetchFeedsHandler(cmdName: string, ...args: string[]) {
@@ -208,6 +216,28 @@ async function fetchFeedsHandler(cmdName: string, ...args: string[]) {
   console.log(feeds);
 
   return;
+}
+
+async function handleFollow(cmdName: string, ...args: string[]) {
+  const url = args[0];
+
+  const { currentUserName } = readConfig();
+
+  const user = await getUserByName(currentUserName);
+
+  const feedFollow = await createFeedFollow(user.id, url);
+
+  console.log(feedFollow);
+}
+
+async function getUserFeeds(cmdName: string, ...args: string[]) {
+  const { currentUserName } = readConfig();
+
+  const user = await getUserByName(currentUserName);
+
+  const feedFollowsForUser = await getFeedFollowsForUser(user.id);
+
+  console.log(feedFollowsForUser);
 }
 
 async function main() {
@@ -222,6 +252,8 @@ async function main() {
   registerCommand(commandRegistry, "agg", fetchFeedHandler);
   registerCommand(commandRegistry, "addfeed", createFeedHandler);
   registerCommand(commandRegistry, "feeds", fetchFeedsHandler);
+  registerCommand(commandRegistry, "follow", handleFollow);
+  registerCommand(commandRegistry, "following", getUserFeeds);
 
   const commandName = args[2];
   const commandsArguments = args.slice(3);

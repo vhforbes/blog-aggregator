@@ -3,14 +3,11 @@ import { db } from "..";
 import { feeds, users } from "../schema";
 import { getUserByName } from "./users";
 
-export async function createFeed(name: string, url: string, userName: string) {
-  const user = await getUserByName(userName);
-
-  if (!user) throw new Error(`User with name ${userName} not found`);
-
+export async function createFeed(name: string, url: string, userId: string) {
   const [result] = await db
     .insert(feeds)
-    .values({ name, url, user_id: user.id });
+    .values({ name, url, user_id: userId })
+    .returning();
 
   return result;
 }
