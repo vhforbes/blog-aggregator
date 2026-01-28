@@ -18,6 +18,7 @@ import {
   getFeedFollowsForUser,
 } from "./lib/db/queries/feedFollow.ts";
 import { User } from "./lib/db/schema.ts";
+import { createPost, getPostsForUser } from "./lib/db/queries/posts.ts";
 
 type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
 
@@ -283,7 +284,15 @@ async function scrapeFeeds() {
 
   const feedItems = feedFetched?.channel.item;
 
-  feedItems?.forEach((item) => console.log(item.title));
+  feedItems?.forEach(async (item) => {
+    await createPost({
+      title: item.title,
+      feedId: feed.id,
+      publishedAt: new Date(item.pubDate),
+      url: item.link,
+      description: item.description,
+    });
+  });
 }
 
 async function triggerScrapeFeeds(cmdName: string, ...args: string[]) {
@@ -336,6 +345,14 @@ function parseDuration(durationStr: string): number {
   }
 }
 
+async function handleBrowse(cmdName: string, user: User, ...args: string[]) {
+  const limit = args[0];
+
+  const posts = await getPostsForUser(user.id, parseInt(limit));
+
+  console.log(posts);
+}
+
 async function main() {
   const args = process.argv;
 
@@ -363,6 +380,7 @@ async function main() {
     "unfollow",
     middlewareLoggedIn(unfollowFeed),
   );
+  registerCommand(commandRegistry, "browse", middlewareLoggedIn(handleBrowse));
 
   const commandName = args[2];
   const commandsArguments = args.slice(3);
