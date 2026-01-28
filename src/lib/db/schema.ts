@@ -1,3 +1,4 @@
+import { InferSelectModel } from "drizzle-orm";
 import { primaryKey } from "drizzle-orm/gel-core";
 import {
   pgTable,
@@ -17,6 +18,8 @@ export const users = pgTable("users", {
   name: text("name").notNull().unique(),
 });
 
+export type User = InferSelectModel<typeof users>;
+
 export const feeds = pgTable("feeds", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -29,6 +32,7 @@ export const feeds = pgTable("feeds", {
     .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
   url: text("url").unique().notNull(),
+  lastFetchedAt: timestamp("last_fetched_at"),
 });
 
 export const feedFollows = pgTable(

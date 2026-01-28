@@ -6,13 +6,26 @@ import {
   getUserByName,
   resetUsersTable,
 } from "./lib/db/queries/users.ts";
-import { createFeed, getFeeds } from "./lib/db/queries/feeds.ts";
+import {
+  createFeed,
+  getFeeds,
+  getNextFeedToFetch,
+  markFeedFetched,
+} from "./lib/db/queries/feeds.ts";
 import {
   createFeedFollow,
+  deleteFeedFollow,
   getFeedFollowsForUser,
 } from "./lib/db/queries/feedFollow.ts";
+import { User } from "./lib/db/schema.ts";
 
 type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
+
+type UserCommandHandler = (
+  cmdName: string,
+  user: User,
+  ...args: string[]
+) => Promise<void>;
 
 type CommandRegistry = Record<string, CommandHandler>;
 
@@ -31,6 +44,26 @@ type RSSItem = {
   description: string;
   pubDate: string;
 };
+
+function middlewareLoggedIn(
+  userCmdHandler: UserCommandHandler,
+): CommandHandler {
+  return async (cmdName: string, ...args: string[]) => {
+    const { currentUserName } = readConfig();
+
+    if (!currentUserName) {
+      throw new Error("User not logged in");
+    }
+
+    const user = await getUserByName(currentUserName);
+
+    if (!user) {
+      throw new Error(`User ${currentUserName} not found`);
+    }
+
+    return userCmdHandler(cmdName, user, ...args);
+  };
+}
 
 function registerCommand(
   registry: CommandRegistry,
@@ -194,16 +227,17 @@ async function fetchFeedHandler(cmdName: string, ...args: string[]) {
   console.log(JSON.stringify(feed));
 }
 
-async function createFeedHandler(cmdName: string, ...args: string[]) {
+async function createFeedHandler(
+  cmdName: string,
+  user: User,
+  ...args: string[]
+) {
   if (!args.length)
     throw new Error("Feed handler expects name and url arguments");
 
   const name = args[0];
   const url = args[1];
 
-  const { currentUserName } = readConfig();
-
-  const user = await getUserByName(currentUserName);
   const createdFeed = await createFeed(name, url, user.id);
   const feedFollow = await createFeedFollow(user.id, createdFeed.url);
 
@@ -218,26 +252,88 @@ async function fetchFeedsHandler(cmdName: string, ...args: string[]) {
   return;
 }
 
-async function handleFollow(cmdName: string, ...args: string[]) {
+async function handleFollow(cmdName: string, user: User, ...args: string[]) {
   const url = args[0];
-
-  const { currentUserName } = readConfig();
-
-  const user = await getUserByName(currentUserName);
 
   const feedFollow = await createFeedFollow(user.id, url);
 
   console.log(feedFollow);
 }
 
-async function getUserFeeds(cmdName: string, ...args: string[]) {
-  const { currentUserName } = readConfig();
-
-  const user = await getUserByName(currentUserName);
-
+async function getUserFeeds(cmdName: string, user: User, ...args: string[]) {
   const feedFollowsForUser = await getFeedFollowsForUser(user.id);
 
   console.log(feedFollowsForUser);
+}
+
+async function unfollowFeed(cmdName: string, user: User, ...args: string[]) {
+  const url = args[0];
+
+  const result = await deleteFeedFollow(url, user.id);
+
+  console.log("deleted feed result", result);
+}
+
+async function scrapeFeeds() {
+  const feed = await getNextFeedToFetch();
+
+  const feedFetched = await fetchFeed(feed.url);
+
+  await markFeedFetched(feed.id);
+
+  const feedItems = feedFetched?.channel.item;
+
+  feedItems?.forEach((item) => console.log(item.title));
+}
+
+async function triggerScrapeFeeds(cmdName: string, ...args: string[]) {
+  const timeBtwnReqs = args[0];
+
+  console.log("Collecting feeds every ", timeBtwnReqs);
+
+  const intervalDuration = parseDuration(timeBtwnReqs);
+
+  await scrapeFeeds().catch(() => new Error("Failed to scrape feed"));
+
+  const interval = setInterval(async () => {
+    await scrapeFeeds().catch(() => new Error("Failed to scrape feed"));
+  }, intervalDuration);
+
+  await new Promise<void>((resolve) => {
+    process.on("SIGINT", () => {
+      console.log("Shutting down feed aggregator...");
+      clearInterval(interval);
+      resolve();
+    });
+  });
+}
+
+function parseDuration(durationStr: string): number {
+  const regex = /^(\d+)(ms|s|m|h)$/;
+  const match = durationStr.match(regex);
+
+  if (!match) {
+    throw new Error("Duration not valid");
+  }
+
+  const time = match[2];
+
+  switch (time) {
+    case "ms":
+      return parseInt(match[1]) * 1;
+
+    case "s":
+      return parseInt(match[1]) * 1000;
+
+    case "m":
+      return parseInt(match[1]) * 1000 * 60;
+
+    case "h":
+      return parseInt(match[1]) * 1000 * 60 * 60;
+
+    default:
+      throw new Error("Unknown time unit");
+  }
 }
 
 async function main() {
@@ -249,11 +345,24 @@ async function main() {
   registerCommand(commandRegistry, "register", registerUser);
   registerCommand(commandRegistry, "reset", resetUsers);
   registerCommand(commandRegistry, "users", getUsers);
-  registerCommand(commandRegistry, "agg", fetchFeedHandler);
-  registerCommand(commandRegistry, "addfeed", createFeedHandler);
+  registerCommand(commandRegistry, "agg", triggerScrapeFeeds);
+  registerCommand(
+    commandRegistry,
+    "addfeed",
+    middlewareLoggedIn(createFeedHandler),
+  );
   registerCommand(commandRegistry, "feeds", fetchFeedsHandler);
-  registerCommand(commandRegistry, "follow", handleFollow);
-  registerCommand(commandRegistry, "following", getUserFeeds);
+  registerCommand(commandRegistry, "follow", middlewareLoggedIn(handleFollow));
+  registerCommand(
+    commandRegistry,
+    "following",
+    middlewareLoggedIn(getUserFeeds),
+  );
+  registerCommand(
+    commandRegistry,
+    "unfollow",
+    middlewareLoggedIn(unfollowFeed),
+  );
 
   const commandName = args[2];
   const commandsArguments = args.slice(3);
